@@ -1,9 +1,11 @@
 # Chisel Random Projections
 
-This repository contains code for building and testing different hardware implementations of Random Projections using Chisel HDL. Chisel generates a C++ simulation for test purposes as well as Verilog which can be ported across different ASIC/FPGA developer toolchains and platforms.  
+This repository contains code for building and testing different hardware implementations of Random Projections 
+using Chisel HDL. Chisel generates a C++ simulation for test purposes as well as Verilog which can be ported 
+across different ASIC/FPGA toolchains and platforms.  
 
 
-## 1. Quick Start:
+## 1. Quick Start
 
 Open a terminal and run:
 
@@ -13,11 +15,11 @@ make test-all
 
 This will run all Chisel C++ simulations. You can run ``` make help ``` for other makefile options. 
 
-## 2. Random Projection:
+## 2. Random Projection
 This repository currently supports:
   * Very Sparse Random Projection (VSRP), as implemented in the [FPT'16 paper](http://phwl.org/papers/rp_fpt16.pdf)
 
-## 3. Build flow:
+## 3. Build flow
 To generate Verilog for the ```VSRP``` module, run:
 
 ```
@@ -25,12 +27,22 @@ make verilog TARGET=VSRPMain
 ```
 This will generate a verilog file called ```VSRP.v``` in the ```./verilog``` directory. **Note:** ```TARGET``` must be a scala object residing in ```src/main/scala/``` that implements a ```chiselMain``` function. 
 
-## 4. Repository Structure:
+## 4. Test Suites
+To test individual modules such as the ```VSRP``` module, run:
+
+```
+make test TARGET=VSRPSuite
+```
+This will run a C++ simulation on the target hardware module, and dump all outputs to the ```./test-outputs``` 
+directory. **Note:** ```TARGET``` must be a scala object residing in ```src/test/scala/``` that implements a 
+```chiselMainTest``` function. 
+
+## 4. Repository Structure
 
 * `src/main: ` Contains the repository source files 
    * `scala: ` 
       * `exanic: ` Source and top module for the ExanicX4 project
-      * `rp: ` Contains hardware modules for the supported Random Projection's
+      * `rp: ` Contains hardware modules for the supported Random Projections
       * `utils: ` Contains helper hardware modules and functions
 * `src/test/scala: ` Chisel test suites.
     * `TestSuite.scala: ` base class
@@ -42,7 +54,7 @@ This will generate a verilog file called ```VSRP.v``` in the ```./verilog``` dir
     * `params.csv` `mem.csv` `seeds.csv: ` inputs for VSRP and VSRP+NORMA modules 
 * `src/data: ` Required input datasets.
 
-## 5. Dependencies:
+## 5. Dependencies
 * python2.7
 * sbt 0.13
 * java openjdk-8
@@ -54,6 +66,3 @@ sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89
 sudo apt-get update
 sudo apt-get install sbt=0.13
 ```
-
-
-

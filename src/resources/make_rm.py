@@ -104,8 +104,8 @@ class LFSR(object):
 # must only be run after genSeeds() and genNonZeros()
 def generateRandomMatrix(seeds_file, mem_file):
     # load random matrix from data/mem.csv and seeds.csv
-    x = pd.DataFrame.from_csv(seeds_file, index_col=False, header=None).values.astype(int)
-    seeds = pd.DataFrame.from_csv(mem_file, index_col=False, header=None).values.astype(int).reshape(-1,)
+    x = np.genfromtxt(mem_file, delimiter=",", dtype=None).astype(int)
+    seeds = pd.DataFrame.from_csv(seeds_file, index_col=False, header=None).values.astype(int).reshape(-1,)
     
     #initialise random matrix
     rij = np.zeros(x.shape)

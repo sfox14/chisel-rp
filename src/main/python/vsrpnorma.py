@@ -10,6 +10,14 @@ import time
 import json
 import csv
 
+mem_csv = "../../resources/mem.csv"
+seeds_csv = "../../resources/seeds.csv"
+params = {"gamma": 0.0506246282, "forget": 0.95, "eta": 0.05, "nu": 0.1}
+
+notes_str = """** The path/location of the random seed and non-zero csv files
+are hard coded above. The gamma, eta, forget and nu parameters are also
+hard coded. Amend this script manually to test different parameters"""
+
 class TypeError(Exception):
     pass
 
@@ -22,20 +30,6 @@ class RandProjError(TypeError):
     def __init__(self, j, n_feats):
         self.message = 'Matrix rij does not match n_feats: %d != %d' %(j,n_feats)
         super(RandProjError, self).__init__(self.message)
-
-
-def getOutName(d, RP=False):
-
-    prefix = "n_"
-    if RP:
-        prefix = "rpn_"
-
-    tempname = d.split('.csv')[0].split('/')
-    if len(tempname) > 1:
-        outname = '/'.join(tempname[:-1])+'/%s'%(prefix)+tempname[-1]+'.json'
-    else:
-        outname = '%s'%(prefix)+tempname[-1]+'.json'
-    return outname
 
 
 def saveOutputFile(outname, optimal_pars, opt):
@@ -110,7 +104,7 @@ class LFSR(object):
 
 def generateRandomMatrix(mem_file, seeds_file):
     # load random matrix from data/mem.csv and seeds.csv
-    x = pd.DataFrame.from_csv(mem_file, index_col=False, header=None).values.astype(int)
+    x = np.genfromtxt(mem_file, delimiter=",", dtype=None).astype(int)
     seeds = pd.DataFrame.from_csv(seeds_file, index_col=False, header=None).values.astype(int).reshape(-1,)
     
     #initialise random matrix
@@ -336,13 +330,13 @@ def classification(x_train, y_train, x_test, y_test, gamma, forget, eta, nu, dic
 
 
 def novelty_detection(x_train, y_train, x_test, y_test, gamma, forget, eta, nu, dictSize, RP=None):
-    
+
 	params = {'gamma': gamma, 'forget': forget, 'eta': eta, 'dictSize': dictSize, 'nu': nu, 'n_feats': x_train.shape[1]}
 	model = NORMA(params, 2, rij=RP)
 	model.fit(x_train, y_train)
 	predictions = model.predict(x_test, y_test)
 
-    return optunity.metrics.roc_auc(y_test, predictions)
+	return optunity.metrics.roc_auc(y_test, predictions)
 
 
 def optimise_reg(d, solver='particle swarm', n_evals = 3, task=3, ts=1, RP=False):
@@ -362,7 +356,7 @@ def optimise_reg(d, solver='particle swarm', n_evals = 3, task=3, ts=1, RP=False
         raise TaskError(task, 3)
 
     if RP:
-        rij,trans = generateRandomMatrix()
+        rij,trans = generateRandomMatrix(mem_csv, seeds_csv)
         print "Proj:        ", trans
 
     print "n_evals:     ", n_evals 
@@ -412,7 +406,7 @@ def optimise_reg(d, solver='particle swarm', n_evals = 3, task=3, ts=1, RP=False
     print "time taken = %.2f secs"%(end_time-start_time)
   
     # saving params to file
-    saveOutputFile(getOutName(d, RP=RP), optimal_pars, info.optimum)
+    saveOutputFile("reg_optimised.json", optimal_pars, info.optimum)
 
 
 def optimise_clas(d, solver='particle swarm', n_evals=3, task=3, ts=1, RP=False):
@@ -431,7 +425,7 @@ def optimise_clas(d, solver='particle swarm', n_evals=3, task=3, ts=1, RP=False)
         raise TaskError(task, 1)
 
     if RP:
-        rij,trans = generateRandomMatrix()
+        rij,trans = generateRandomMatrix(mem_csv, seeds_csv)
         print "Proj:        ", trans  
     
     print "n_evals:     ", n_evals   
@@ -483,7 +477,7 @@ def optimise_clas(d, solver='particle swarm', n_evals=3, task=3, ts=1, RP=False)
 
     
     # saving params to file
-    saveOutputFile(getOutName(d, RP=RP), optimal_pars, info.optimum)
+    saveOutputFile("clas_optimised.json", optimal_pars, info.optimum)
 
 
 def optimise_nov(d, solver='particle swarm', n_evals=3, task=2, ts=1, RP=False):
@@ -502,7 +496,7 @@ def optimise_nov(d, solver='particle swarm', n_evals=3, task=2, ts=1, RP=False):
         raise TaskError(task, 1)
 
     if RP:
-        rij,trans = generateRandomMatrix()
+        rij,trans = generateRandomMatrix(mem_csv, seeds_csv)
         print "Proj:        ", trans  
     
     print "n_evals:     ", n_evals   
@@ -547,7 +541,7 @@ def optimise_nov(d, solver='particle swarm', n_evals=3, task=2, ts=1, RP=False):
     print "time taken = %.2f secs"%(end_time-start_time)
 
     # saving params to file
-    saveOutputFile(getOutName(d, RP=RP), optimal_pars, info.optimum)
+    saveOutputFile("nov_optimised.json", optimal_pars, info.optimum)
     
 
 def test_classification(d, task=1, RP=False):
@@ -561,14 +555,10 @@ def test_classification(d, task=1, RP=False):
 
     rij = None
     if RP:
-        rij,trans = generateRandomMatrix()
+        rij,trans = generateRandomMatrix(mem_csv, seeds_csv)
         print "Proj:        ", trans 
 
     x_train, y_train, x_test, y_test = dataset_split(d, split=0.8)
-
-    param_name = getOutName(d, RP=RP)
-    op_txt = open(param_name)
-    params = json.load(op_txt)
 
     auc = classification(x_train, y_train, x_test, y_test, params['gamma'], params['forget'], params['eta'], params['nu'], 200, RP=rij)
     print "\nAUC: ", auc
@@ -585,14 +575,10 @@ def test_novelty(d, task=2, RP=False):
 
     rij = None
     if RP:
-        rij,trans = generateRandomMatrix()
+        rij,trans = generateRandomMatrix(mem_csv, seeds_csv)
         print "Proj:        ", trans 
 
     x_train, y_train, x_test, y_test = dataset_split(d, split=2./3.)
-
-    param_name = getOutName(d, RP=RP)
-    op_txt = open(param_name)
-    params = json.load(op_txt)
 
     auc = novelty_detection(x_train, y_train, x_test, y_test, params['gamma'], params['forget'], params['eta'], params['nu'], 100, RP=rij)
     print "\nAUC: ", auc
@@ -609,14 +595,10 @@ def test_regression(d, task=3, RP=False):
 
     rij = None
     if RP:
-        rij,trans = generateRandomMatrix()
+        rij,trans = generateRandomMatrix(mem_csv, seeds_csv)
         print "Proj:        ", trans 
 
     x_train, y_train, x_test, y_test = dataset_split(d, split=0.8)
-
-    param_name = getOutName(d, RP=RP)
-    op_txt = open(param_name)
-    params = json.load(op_txt)
     
     mse = regression(x_train, y_train, x_test, y_test, params['gamma'], params['forget'], params['eta'], params['nu'], 200, RP=rij)
     print "\nMSE: ", mse
@@ -656,12 +638,13 @@ if __name__ == "__main__":
             print "Error: 'test' or 'opt'"
 
     except IndexError:
-        print "python vsrpnorma.py 1 2 3 4 *5 *6"
-        print "1 - filename.csv"
-        print "2 - test or opt"
-        print "3 - appType (Classification=1, Novelty Detection=2, Regression=3)"
-        print "4 - random projection?(1/0 i.e. True or False)"
-        print "if opt:"
-        print " 5 - treat data as a timeseries (1/0)"
-        print " 6 - n_evals"    
-
+		print "This script is used to test and optimise NORMA and VSRP+NORMA\n"
+		print "run:	python vsrpnorma.py 1 2 3 4 *5 *6\n"
+		print "1 - string 	'dataset_name.csv'"
+		print "2 - string	'test' or 'opt'"
+		print "3 - int 	Classification=1, Novelty Detection=2, Regression=3)"
+		print "4 - int 	Random Projection? Yes=1, No=0"
+		print "if 'opt':"
+		print "5 - int:	Data as timeseries? Yes=1, No=0"
+		print "6 - int:	Number of Evaluations\n"
+		print notes_str    

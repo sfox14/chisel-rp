@@ -1,6 +1,5 @@
-*.class
+.class
 *.log
-#*.csv
 *~
 *.cmd
 
@@ -22,3 +21,9 @@ verilog/
 .scala_dependencies
 .worksheet
 .emulator
+
+# Repo specific
+project/
+test-outputs/
+vsrp-cpu
+*.json

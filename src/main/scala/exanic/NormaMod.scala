@@ -1,9 +1,8 @@
-package exanicNorma
+package exanic
 
 import Chisel._
-import chiselutils.interfaces.exanicx4.TimeSeriesInterface
-import chiselutils.utils.Serializer
-import chiselutils.xilinx.AsyncFifoXilinx
+import utils.Serializer
+import utils.AsyncFifoXilinx
 import scala.collection.mutable.ArrayBuffer
 import OLK.NORMA
 

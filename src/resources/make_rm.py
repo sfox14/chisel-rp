@@ -3,7 +3,7 @@ import sys
 import csv
 import pandas as pd
 
-def getSeeds(n_features = 14, n_components = 10, seeds_file = "data/seeds.csv", mem_file = "data/mem.csv"):
+def getSeeds(n_features, n_components, seeds_file, mem_file):
     # generate a csv file for the random seeds
     # 16bits
 
@@ -21,16 +21,14 @@ def getSeeds(n_features = 14, n_components = 10, seeds_file = "data/seeds.csv", 
     wr.writerow(seeds)
 
 
-def getNonZeros(n_features = 14, n_components = 10, seeds_file = "data/seeds.csv", mem_file = "data/mem.csv"):
+def getNonZeros(n_features, n_components, seeds_file, mem_file):
 
-    less_sparse = True if seeds_file == "data/seeds_ls.csv" else False
+    less_sparse = False
 
     # generate non zeros (n_features x n_components)
-
     f = open(seeds_file, 'rb')
     reader = csv.reader(f)
     seeds = list(reader)[0]
-    
     
     if less_sparse:
         print "Less-Sparse Random Projection"
@@ -103,10 +101,11 @@ class LFSR(object):
         self.state = '{0:016b}'.format(self.seed)
 
 
-def generateRandomMatrix():
+# must only be run after genSeeds() and genNonZeros()
+def generateRandomMatrix(seeds_file, mem_file):
     # load random matrix from data/mem.csv and seeds.csv
-    x = pd.DataFrame.from_csv("data/mem.csv", index_col=False, header=None).values.astype(int)
-    seeds = pd.DataFrame.from_csv("data/seeds.csv", index_col=False, header=None).values.astype(int).reshape(-1,)
+    x = pd.DataFrame.from_csv(seeds_file, index_col=False, header=None).values.astype(int)
+    seeds = pd.DataFrame.from_csv(mem_file, index_col=False, header=None).values.astype(int).reshape(-1,)
     
     #initialise random matrix
     rij = np.zeros(x.shape)
@@ -127,43 +126,19 @@ def generateRandomMatrix():
             rij[i][j] = x[i][j]*rnd
         lfsr.reset() #no real need for this
 
+    print("Very Sparse Random Matrix: \n", rij)
     return rij, x.shape
-
-def make_rpdata():
-
-    rij, _ = generateRandomMatrix()
-
-    X = pd.DataFrame.from_csv("data/artificialTwoClass.csv", index_col=False, header=None)
-
-    heads = list(X.columns.values)
-    x = X[heads[3:]].values
-    print x.shape, rij.shape
-    xnew = np.dot(x, rij)
-
-    Xnew = pd.DataFrame(xnew)
-    Xnew.insert(0, 'y', X[2].values)
-    Xnew.insert(0, 't', X[1].values)
-    Xnew.insert(0, 'f', X[0].values)
-
-    Xnew.to_csv("data/artificialTwoClass_rp.csv", index=False, header=False)
 
 
 if __name__ == "__main__":	
 
-    #make_rpdata()
-
 
     nf = int(sys.argv[1])
     nc = int(sys.argv[2])
-    #ls = int(sys.argv[3]) # 1-sparse, 0-very sparse. 1-means higher computational complexity (non preferred)
 
-    #if ls == 1:
-    #    seeds_file = "data/seeds_ls.csv"
-    #    mem_file = "data/mem_ls.csv"
-    #else:
-    seeds_file = "data/seeds.csv"
-    mem_file = "data/mem.csv"
+    seeds_file = "./seeds.csv"
+    mem_file = "./mem.csv"
 
-    getSeeds(n_features = nf, n_components =nc, seeds_file = seeds_file, mem_file = mem_file)
-    getNonZeros(n_features=nf, n_components=nc, seeds_file = seeds_file, mem_file = mem_file)
-
+    getSeeds(nf, nc, seeds_file, mem_file)
+    getNonZeros(nf, nc, seeds_file, mem_file)
+    generateRandomMatrix(seeds_file, mem_file)

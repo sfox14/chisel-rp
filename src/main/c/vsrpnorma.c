@@ -181,6 +181,15 @@ void randProj84(int features, int components, float *x, int **rm, float *res ){
 
 
 int main(int argv, char * args []) {
+
+  if (argv<2){
+    printf("ERROR: Too few command line arguments. Run ./vsrp-cpu arg1, where:\n");
+    printf("  int arg1=\n");
+    printf("    1-VSRP+NORMA\n");
+    printf("    2-NORMA\n");
+    printf("    3-VSRP\n");
+    return -1;
+  }
   char *input = args[1];
   float gamma = 0.0506246281646581;
   float forget = 0.95;
@@ -196,21 +205,21 @@ int main(int argv, char * args []) {
   mode = atol(input);
 
   if (mode == 1){
-      printf("running random projections + norma ... \n");
+      printf("Runnig VSRP+NORMA ... \n");
       dictSize = 25;
       features = 8;
       components = 4;
       printf("dictSize = %d \nfeatures = %d \ncomponents = %d \n\n", dictSize, features, components);
   }
   else if (mode == 2){
-      printf("running norma alone ... \n");
+      printf("Running NORMA alone ... \n");
       dictSize = 14;
       features = 8;
       components = 4;
       printf("dictSize = %d \nfeatures = %d \ncomponents = %d \n\n", dictSize, features, components);
   }
   else{
-      printf("running random projection alone ... \n");
+      printf("Running VSRP alone ... \n");
       dictSize = 10;
       features = 8;
       components = 4;
@@ -336,14 +345,15 @@ int main(int argv, char * args []) {
   
 
   // Free memory
-  for ( i = 0; i < noEx; i++)
+  for ( i = 0; i < noEx; i++) {
     free(examples[i]);
+  }
   free(examples);
-  //free(x);
   free(weights);
   free(tmp);
-  for (i = 0; i < dictSize; i++)
+  for (i = 0; i < dictSize; i++) {
     free(dict[i]);
+  }
   free(dict);
   return 0;
 }

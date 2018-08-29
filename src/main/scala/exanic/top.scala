@@ -1,14 +1,14 @@
+package exanic 
 
 import Chisel._
-import chiselutils.interfaces.exanicx4._
-import exanic._
 import com.github.tototoshi.csv._
 import scala.collection.mutable.ArrayBuffer
 
-object top {
+// Generate verilog for VSRP+NORMA targeting ExanicX4 (same as FPT16 paper)
 
+object VSRPNormaMain {
 
-  val rd1 = CSVReader.open(new java.io.File("params.csv"))
+  val rd1 = CSVReader.open(new java.io.File("src/resources/params.csv"))
   val params = rd1.all()
   val n_features = params(0)(0).toInt
   val n_components = params(0)(1).toInt
@@ -19,7 +19,7 @@ object top {
   rd1.close()
   
   // Get the seeds for the rng 
-  val rd = CSVReader.open(new java.io.File("data/seeds.csv"))
+  val rd = CSVReader.open(new java.io.File("src/resources/seeds.csv"))
   val res = rd.all()(0)
   println(res)
   val seeds = new ArrayBuffer[Int]()
@@ -30,7 +30,7 @@ object top {
   // 2. Read the precomputed non-zero indices
   //    - n_features x n_components (i.e. 8x4) 
   val mem = ArrayBuffer[ArrayBuffer[Boolean]]()
-  val reader2 = CSVReader.open( new java.io.File("data/mem.csv") )
+  val reader2 = CSVReader.open( new java.io.File("src/resources/mem.csv") )
 
   val iter2 = reader2.iterator
   var nc = -1
@@ -48,13 +48,12 @@ object top {
   }
   reader2.close()
 
-
-  def rpnFunct() : rpnMod = {
-    new rpnMod( n_features, n_components, n_dicts, bitWidth, fracWidth, seeds, mem )
+  def modFunc() : VSRPNormaMod = {
+    new VSRPNormaMod( n_features, n_components, n_dicts, bitWidth, fracWidth, seeds, mem )
   }
 
   def main(args: Array[String]): Unit = {
-    println("Generating the Random Projection + NORMA verilog")
+    println("Generating the VSRP Random Projection + NORMA verilog")
     val chiselArgs = args.drop(1)
     /** create UserApplication verilog
       * args = userMod output type
@@ -64,7 +63,8 @@ object top {
       *        noBytes to return
       */
     //96 bytes = 32 examples * 8 features * 24bits
-    chiselMain(chiselArgs, () => Module( new ExanicX4TimeSeries2( Fixed( width = bitWidth, fracWidth = fracWidth ), 800, 128, rpnFunct, 16 ) ) ) 
+    chiselMain(chiselArgs, () => 
+      Module( new VSRPNormaX4( Fixed( width=bitWidth, fracWidth=fracWidth ), 800, 128, modFunc, 16 ) )) 
 
   }
 }

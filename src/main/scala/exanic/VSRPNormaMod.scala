@@ -1,18 +1,17 @@
-
 package exanic
 
 import Chisel._
-import chiselutils.interfaces.exanicx4.TimeSeriesInterface
-import chiselutils.utils.Serializer
-import chiselutils.xilinx.AsyncFifoXilinx
+import utils.Serializer
+import utils.AsyncFifoXilinx
+import rp.VSRP
 import scala.collection.mutable.ArrayBuffer
 import OLK.NORMA
 
 
 
-class rpnMod (val n_features : Int, val n_components : Int, val n_dicts : Int, val bitWidth : Int, val fracWidth : Int,
-                val seeds : ArrayBuffer[Int], val mem : ArrayBuffer[ArrayBuffer[Boolean]] ) 
-                    extends TimeSeriesInterface( Fixed( width = bitWidth, fracWidth = fracWidth ), 15 ) {
+class VSRPNormaMod (val n_features : Int, val n_components : Int, val n_dicts : Int, val bitWidth : Int, val fracWidth : Int,
+      val seeds : ArrayBuffer[Int], val mem : ArrayBuffer[ArrayBuffer[Boolean]] ) 
+      extends TimeSeriesInterface( Fixed( width = bitWidth, fracWidth = fracWidth ), 15 ) {
   
   
   val usrClk = Clock( src = clock, period = 2 )
@@ -22,9 +21,8 @@ class rpnMod (val n_features : Int, val n_components : Int, val n_dicts : Int, v
   val dictSize = n_dicts
   val normaStages = ArrayBuffer( false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, true, true ) // stages for 12
 
-  val randomProjection = Module ( new RandomProjection ( n_features, n_components, bitWidth, fracWidth, seeds, mem ) )  
+  val vsrp = Module ( new VSRP( n_features, n_components, bitWidth, fracWidth, seeds, mem ) )  
   val norma = Module( new NORMA( bitWidth, fracWidth, normaStages, 0, n_dicts, features, 2, clk = usrClk ) )
-  
   
   // Use the serializer to deal with conversions
   val vecBitsIn = Vec.fill( 64 ) { UInt( width = 1 ) }
@@ -43,8 +41,8 @@ class rpnMod (val n_features : Int, val n_components : Int, val n_dicts : Int, v
   vecBitsOut := myFixedType.fromBits( ( 0 until bitWidth ).reverse.map( x => {
        serializer.io.dataOut.bits( x ) }).reduce(_##_) )
 
-  randomProjection.io.dataIn.bits := RegNext( vecBitsOut )  
-  randomProjection.io.dataIn.valid := RegNext( serializer.io.dataOut.valid ) 
+  vsrp.io.dataIn.bits := RegNext( vecBitsOut )  
+  vsrp.io.dataIn.valid := RegNext( serializer.io.dataOut.valid ) 
 
   val pCycles = norma.pCycles
   val rCycles = n_features + 1
@@ -53,8 +51,8 @@ class rpnMod (val n_features : Int, val n_components : Int, val n_dicts : Int, v
   // Convert to usrClk domain
   val asyncFifo = Module( new AsyncFifoXilinx( Vec.fill( features ) { Fixed( width = bitWidth, fracWidth = fracWidth ) }, 32, clock, usrClk ) )
                                                
-  asyncFifo.io.enq.bits := RegNext( randomProjection.io.dataOut.bits ) 
-  asyncFifo.io.enq.valid := RegNext( randomProjection.io.dataOut.valid )
+  asyncFifo.io.enq.bits := RegNext( vsrp.io.dataOut.bits ) 
+  asyncFifo.io.enq.valid := RegNext( vsrp.io.dataOut.valid )
   asyncFifo.io.deq.ready := Bool(true)
   
   val regInFws = (0 until 4).map( idx => myFixedType.fromBits(

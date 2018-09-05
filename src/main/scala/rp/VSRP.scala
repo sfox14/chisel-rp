@@ -108,7 +108,6 @@ class VSRP (val n_features : Int, val n_components : Int, val bitWidth : Int, va
 }
 
 // Generates VSRP verilog
-
 object VSRPMain {
 
     val rd1 = CSVReader.open(new java.io.File("src/resources/params.csv"))

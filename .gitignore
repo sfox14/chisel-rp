@@ -27,3 +27,4 @@ project/
 test-outputs/
 vsrp-cpu
 *.json
+!/src/main/verilog

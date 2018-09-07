@@ -45,6 +45,7 @@ class BinaryRPSuite extends TestSuite {
       val n_examples = 2
       val n_features = c.n_features
       val n_outputs = c.n_outputs
+      val outWidth = c.outWidth
       val k = c.k
       val seeds = c.seeds
 
@@ -53,7 +54,8 @@ class BinaryRPSuite extends TestSuite {
       println(s"number of input examples = ${n_examples}")
       println(s"number of features = ${n_features}")
       println(s"number of outputs = ${n_outputs}")
-      println(s"streaming width = ${k}")
+      println(s"streaming input width = ${k}")
+      println(s"streaming output width = ${outWidth}")
       println(s"random seeds = ${seeds}")
 
       /* csv writer */
@@ -97,7 +99,9 @@ class BinaryRPSuite extends TestSuite {
           }
 
           if (peek(c.io.dout.valid) == 1){
-            outs += fromPeek.toDbl( peek(c.io.dout.bits), bitWidth, fracWidth )
+            for(iw <- 0 until outWidth){
+              outs += fromPeek.toDbl( peek(c.io.dout.bits(iw)), bitWidth, fracWidth )
+            }
           }
           step(1)
         }
@@ -106,7 +110,9 @@ class BinaryRPSuite extends TestSuite {
       // get remaining outputs
       for(ix <- 0 until (n_examples*n_outputs - outs.length)+10 ){
         if (peek(c.io.dout.valid) == 1){
-            outs += fromPeek.toDbl( peek(c.io.dout.bits), bitWidth, fracWidth )
+            for(iw <- 0 until outWidth){
+              outs += fromPeek.toDbl( peek(c.io.dout.bits(iw)), bitWidth, fracWidth )
+            }
         }
         step(1)
       }
@@ -134,6 +140,7 @@ class BinaryRPSuite extends TestSuite {
     val k = 4
     val n_features = 16
     val n_outputs = 6
+    val outWidth = 1
     
     /* make some random seeds */
     val rng = new Random(43)
@@ -143,6 +150,6 @@ class BinaryRPSuite extends TestSuite {
     chiselMainTest(Array("--genHarness", "--test", "--backend", "c", //"--wio", 
       "--compile", "--targetDir", dir.getPath.toString(), "--vcd"), // .emulator is a hidden directory
       () => Module(new BinaryPE( bitWidth, fracWidth, k, n_features, n_outputs, 
-        seeds, true))) { f => new PETest(f, false) }
+        outWidth, seeds, true))) { f => new PETest(f, true) }
   }
 }

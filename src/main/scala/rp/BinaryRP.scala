@@ -53,10 +53,10 @@ class SerialToParallel(val bitWidth : Int, val fracWidth : Int, outWidth : Int) 
 
 
 // BinaryRP Dot Product
-class BinaryDP(bitWidth : Int, fracWidth : Int, k : Int, 
+class BinaryDP(bitWidth : Int, fracWidth : Int, inWidth : Int, 
   seeds : Seq[Int]) extends Module {
   val io = new Bundle {
-    val din = Valid( Vec.fill( k ){ Fixed(INPUT, bitWidth, fracWidth) } ).flip
+    val din = Valid( Vec.fill( inWidth ){ Fixed(INPUT, bitWidth, fracWidth) } ).flip
     val dout = Valid( Fixed(OUTPUT, bitWidth, fracWidth) )
     val rst = Bool(INPUT)
   }
@@ -72,14 +72,14 @@ class BinaryDP(bitWidth : Int, fracWidth : Int, k : Int,
     (tmp(0), stages)
   }
 
-  val lfsrs = (0 until k).map( x => Module(new LFSR( seeds(x) )) )
-  for (idx <-0 until k){
+  val lfsrs = (0 until inWidth).map( x => Module(new LFSR( seeds(x) )) )
+  for (idx <-0 until inWidth){
     lfsrs(idx).io.valid := io.din.valid
     lfsrs(idx).io.off := io.rst
   }
 
   // stage 1 // lfsrs(x).io.out
-  val operands = (0 until k).map(x => Mux( Bool(true), 
+  val operands = (0 until inWidth).map(x => Mux( Bool(true), 
     RegNext( io.din.bits(x) ), RegNext( -io.din.bits(x) ) ) ).toVector
   
   // accumulate
@@ -95,12 +95,14 @@ class BinaryDP(bitWidth : Int, fracWidth : Int, k : Int,
 
 
 // BinaryRP Processing Element
-class BinaryPE(val bitWidth : Int, val fracWidth : Int, val k : Int, val n_features : Int, 
-  val n_outputs : Int, val outWidth : Int, val seeds : Seq[Int], forSim : Boolean=true) extends Module {
+class BinaryPE(val bitWidth : Int, val fracWidth : Int, val n_features : Int, 
+  val p_outputs : Int, val inWidth : Int, val outWidth : Int, val seeds : Seq[Int], 
+  forSim : Boolean=true) extends Module {
+  
   val io = new Bundle {
-    val din = Decoupled( Vec.fill( k ){ Fixed(INPUT, bitWidth, fracWidth) } ).flip
+    val din = Decoupled( Vec.fill( inWidth ){ Fixed(INPUT, bitWidth, fracWidth) } ).flip
     val dout = Decoupled( Vec.fill( outWidth ){ Fixed(OUTPUT, bitWidth, fracWidth) } )
-    val dinOut = Valid( Vec.fill( k ){ Fixed(OUTPUT, bitWidth, fracWidth) } )
+    val dinOut = Valid( Vec.fill( inWidth ){ Fixed(OUTPUT, bitWidth, fracWidth) } )
   }
 
   val ZERO = Fixed(0, bitWidth, fracWidth)
@@ -108,16 +110,16 @@ class BinaryPE(val bitWidth : Int, val fracWidth : Int, val k : Int, val n_featu
 
 
   /* Binary dot product module */
-  val dotprod = Module( new BinaryDP(bitWidth, fracWidth, k, seeds) )
+  val dotprod = Module( new BinaryDP(bitWidth, fracWidth, inWidth, seeds) )
 
   /* local mem for partial outputs */
   val id = 321
-  val mem = Module( new PipelinedDualPortLutRAM(dataType, log2Up(n_outputs), 1, 1, id,
-        (0 until n_outputs).map(x => BigInt(0)), forSim ))
+  val mem = Module( new PipelinedDualPortLutRAM(dataType, log2Up(p_outputs), 1, 1, id,
+        (0 until p_outputs).map(x => BigInt(0)), forSim ))
 
 
   /* control */
-  val counterA = RegInit( UInt(0, width=7) ) // limit=n_outputs, incr=1
+  val counterA = RegInit( UInt(0, width=7) ) // limit=p_outputs, incr=1
   val counterB = RegInit( UInt(0, width=7) ) // limit=n_features/k, incr=1
   val rowDone = Bool() // trigger
   val colDone = Bool()
@@ -135,11 +137,11 @@ class BinaryPE(val bitWidth : Int, val fracWidth : Int, val k : Int, val n_featu
   ctrlvalid := io.din.valid & !stall
 
   /* transition when outputs accumulated for k features */
-  when( counterA === UInt(n_outputs-1) && ctrlvalid){
+  when( counterA === UInt(p_outputs-1) && ctrlvalid){
     rowDone := Bool(true)
     counterA := UInt(0)
   }
-  when( counterB === UInt(n_features/k -1) ){
+  when( counterB === UInt(n_features/inWidth -1) ){
     colDone := Bool(true)
     when( rowDone ){
       counterB := UInt(0)
@@ -196,8 +198,6 @@ class BinaryPE(val bitWidth : Int, val fracWidth : Int, val k : Int, val n_featu
   wdata := Mux(outValid, ZERO, result)
 
   /* output */
-  //io.dout.bits := result
-  //io.dout.valid := outValid
   io.din.ready := rowDone
 
   /* broadcast tree */
@@ -212,20 +212,20 @@ class BinaryPE(val bitWidth : Int, val fracWidth : Int, val k : Int, val n_featu
   io.dout.bits := stp.io.dout.bits
   io.dout.valid := stp.io.dout.valid
 
+  val stages = dotprod.stages + 1
 
   // assertions
-  Predef.assert( n_outputs >= mem.stages+1, s"""Error: Not enough partial outputs 
-    to fill the pipeline. Requires n_outputs >= ${mem.stages+1}""" )
-  Predef.assert( (n_features%k)==0, s"""Error: Number of features must be divisible
+  Predef.assert( p_outputs >= mem.stages+1, s"""Error: Not enough partial outputs 
+    to fill the pipeline. Requires p_outputs >= ${mem.stages+1}""" )
+  Predef.assert( (n_features%inWidth)==0, s"""Error: Number of features must be divisible
     by the input streaming width""" )
-  Predef.assert( (n_outputs%outWidth)==0, s"""Error: Number of outputs must be divisible
+  Predef.assert( (p_outputs%outWidth)==0, s"""Error: Number of outputs must be divisible
     by the output streaming width""" )
 
 }
 
-
-class BinaryRP(val bitWidth : Int, val fracWidth : Int, val inWidth : Int, 
-  val outWidth : Int, val p : Int, val n_features : Int, val n_outputs : Int, 
+class BinaryRP(val bitWidth : Int, val fracWidth : Int, val n_features : Int, 
+	val n_outputs : Int, val p : Int, val inWidth : Int, val outWidth : Int,  
   val seeds : Seq[Seq[Int]], forSim : Boolean=true) extends Module {
   
   val io = new Bundle {
@@ -245,6 +245,9 @@ class BinaryRP(val bitWidth : Int, val fracWidth : Int, val inWidth : Int,
   each feature, i.e. input dimension, is fully reused.  
   */
 
+  Predef.assert( (n_outputs%p)==0, s"""Error: Total number of outputs must be divisible
+    by the number of PEs""" )
+  val p_outputs = (n_outputs/p)
   val dataType = Fixed(width=bitWidth, fracWidth=fracWidth)
 
     /* Ingress network*/
@@ -252,42 +255,154 @@ class BinaryRP(val bitWidth : Int, val fracWidth : Int, val inWidth : Int,
   inFifo.io.enq.bits := io.din.bits
   inFifo.io.enq.valid := io.din.valid
 
+  io.din.ready := (inFifo.io.count < UInt(10))
 
-  val array = (0 until p).map(x => Module( new BinaryPE(bitWidth, fracWidth, inWidth, n_features,
-    n_outputs, seeds(x), forSim) ))
+  val array = (0 until p).map(x => Module( new BinaryPE(bitWidth, fracWidth, n_features, 
+  	p_outputs, inWidth, outWidth, seeds(x), forSim) ))
 
   inFifo.io.deq.ready := array(0).io.din.ready // will stall
-  array(0).io.din.bits := inFifo.io.enq.bits
-  array(0).io.din.valid := inFifo.io.enq.valid
+  array(0).io.din.bits := inFifo.io.deq.bits
+  array(0).io.din.valid := inFifo.io.deq.valid
   for( ix <- 1 until p){
     array(ix).io.din.bits := array(ix-1).io.dinOut.bits
     array(ix).io.din.valid := array(ix-1).io.dinOut.valid
-    
+    array(ix).io.dout.ready := Bool(true)
   }
 
-
-  //val pes = (0 until p).map( x => Module(new ))
+  array(0).io.dout.ready := Bool(true) //never stall
 
   /* Egress network */
+  val egress = Module(new EgressNetwork(bitWidth, fracWidth, n_outputs, p, outWidth) )
 
+  for (ix <- 0 until p){
+  	egress.io.din(ix).bits := array(ix).io.dout.bits
+  	egress.io.din(ix).valid := array(ix).io.dout.valid
+  }
+
+  io.dout.bits := egress.io.dout.bits
+  io.dout.valid := egress.io.dout.valid
   
 }
 
+
+class OutBuffer(val bitWidth : Int, val fracWidth : Int, p_outputs : Int, 
+	outWidth : Int) extends Module{
+
+  val io = new Bundle{
+    val din = Valid( Vec.fill( outWidth ){ Fixed(INPUT, bitWidth, fracWidth) } ).flip()
+    val nextData = Valid( Vec.fill( outWidth ){ Fixed(INPUT, bitWidth, fracWidth) } ).flip()
+    val enNext = Bool(INPUT)
+    val readyIn = Bool(INPUT)
+    val readyOut = Bool(OUTPUT)
+    val dout = Valid( Vec.fill( outWidth ){ Fixed(OUTPUT, bitWidth, fracWidth) } )
+  }
+
+  val inData = Mux( io.enNext, io.nextData, io.din )
+  val buffer = Module( new Queue(Vec.fill( outWidth ){Fixed(width=bitWidth, 
+    fracWidth=fracWidth)}, (p_outputs/outWidth) ) )
+
+  buffer.io.enq.bits := inData.bits
+  buffer.io.enq.valid := inData.valid
+  buffer.io.deq.ready := io.readyIn
+
+  io.readyOut := RegNext(io.readyIn)
+  io.dout.bits := buffer.io.deq.bits
+  io.dout.valid := buffer.io.deq.valid
+
+}
+
+
+class EgressNetwork(val bitWidth : Int, val fracWidth : Int, n_outputs : Int, 
+	p : Int, outWidth : Int ) extends Module{
+  
+  val io = new Bundle{
+    val din = Vec.fill( p ){ Valid( Vec.fill( outWidth ){ Fixed(INPUT, bitWidth, fracWidth) }).flip() }
+    val dout = Valid( Vec.fill( outWidth ){ Fixed(OUTPUT, bitWidth, fracWidth) } )
+  }
+
+  Predef.assert( (n_outputs%p)==0, s"""Error: Total number of outputs must be divisible
+    by the number of PEs""" )  
+  val p_outputs = (n_outputs/p)
+
+  // define control
+  val counterA = RegInit(UInt(0, width=8))
+  val counterB = RegInit(UInt(0, width=log2Up(n_outputs*p)+1 ))
+  val enDeq = RegInit(Bool(false))
+
+
+  // buffer network
+  val buffer0 = Module( new Queue(Vec.fill( outWidth ){Fixed(width=bitWidth, 
+    fracWidth=fracWidth)}, (p_outputs/outWidth) ) )
+  val bufferTree = (0 until p-1).map(x => Module( new OutBuffer(bitWidth, fracWidth, 
+    p_outputs, outWidth) ))
+
+  // connect buffer0 inputs
+  val sel0 = !enDeq
+  val inData = Valid( Vec.fill( outWidth ){ Fixed(width=bitWidth, fracWidth=fracWidth) } )
+  if (p>1){
+  	inData := Mux( sel0, io.din(0), bufferTree(0).io.dout )
+  } else {
+  	inData := io.din(0)
+  }
+  buffer0.io.enq.bits := inData.bits
+  buffer0.io.enq.valid := inData.valid
+  buffer0.io.deq.ready := Bool(true)  // assume that egress keeps up with compute
+
+  // default control connections
+  val addA = UInt(1) & io.din(0).valid
+  val addB = UInt(1) & inData.valid
+  counterA := counterA + addA
+  counterB := counterB + addB
+
+  //trigger
+  when( counterA === UInt((p_outputs/outWidth)-1) && addA === UInt(1) ){
+  	enDeq := Bool(true)
+    counterA := UInt(0)
+  }
+  when( counterB === UInt((n_outputs/outWidth)-1) && addB === UInt(1) ){
+  	enDeq := Bool(false)
+    counterB := UInt(0)
+  }
+
+  // connect outBuffer tree
+  if (p>1){
+  	for (ix <- 1 until p){
+    	bufferTree(ix-1).io.din := io.din(ix)
+  	}
+  	bufferTree(0).io.enNext := RegNext(enDeq)
+  	bufferTree(0).io.readyIn := RegNext(enDeq)
+  	for (ix <- 1 until p-1){
+  		bufferTree(ix).io.enNext := bufferTree(ix-1).io.readyOut
+    	bufferTree(ix).io.readyIn := bufferTree(ix-1).io.readyOut
+    	bufferTree(ix-1).io.nextData := bufferTree(ix).io.dout
+  	}
+  }
+  
+  // outputs
+  io.dout.bits := buffer0.io.deq.bits
+  io.dout.valid := buffer0.io.deq.valid
+
+}
+
+// Generates VSRP verilog
 object BinaryRPMain {
 
     val bitWidth = 18
     val fracWidth = 10
-    val k = 8
-    val outWidth = 1
+    val n_features = 16
+    val n_outputs = 6
+    val inWidth = 4
+    val outWidth = 2
     val p = 1
-    val seeds = (0 until p).map(x => (0 until k).map(y => 0))
+
+    val seeds = (0 until p).map(x => (0 until inWidth).map(y => 0))
 
     def main(args: Array[String]): Unit = {
       println("Generating the Binary Random Projection verilog")
 
       chiselMain( Array("--backend", "v", "--targetDir", "verilog"),
-        () => Module(new BinaryRP(bitWidth, fracWidth, k, outWidth, p, seeds)) )
+        () => Module(new BinaryRP(bitWidth, fracWidth, n_features, n_outputs, 
+        	p, inWidth, outWidth, seeds, false)) )
   }
 
 }
-*/

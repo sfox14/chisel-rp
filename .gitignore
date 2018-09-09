@@ -26,5 +26,6 @@ verilog/
 project/
 test-outputs/
 vsrp-cpu
+vivado/
 *.json
 !/src/main/verilog

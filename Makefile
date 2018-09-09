@@ -11,10 +11,12 @@ srcdir ?= src/main/scala/*
 csrcdir ?= src/main/c
 source_files := $(wildcard $(srcdir)/*.scala)
 
+TCL_SCRIPT := src/main/vivado/compile.tcl
+
 TARGET := VSRPSuite
 
 # Generate verilog
-.PHONY: all verilog
+.PHONY: all verilog vivado
 all: help 
 	set -e pipefail; $(SBT) $(SBT_FLAGS) "run --genHarness --backend v --targetDir verilog $(CHISEL_FLAGS)"
 
@@ -29,6 +31,10 @@ test:
 # Run all Chisel tests
 test-all:
 	$(SBT) test
+
+# Build vivado project
+vivado:
+	mkdir -p vivado/ && vivado -mode batch -source $(TCL_SCRIPT) -log ./vivado/vivado.log -journal ./vivado/vivado.jou -tclargs $(TARGET)
 
 
 # Compile the FPT'16 CPU benchmarks
@@ -76,7 +82,7 @@ help::
 	$(ECHO) ""
 	$(ECHO) "	Arguments:"
 	$(ECHO) "	----------"
-	$(ECHO) "	TARGET:		target Verilog or TestSuite"							
+	$(ECHO) "	TARGET:		target Verilog, TestSuite or Vivado top module name"							
 	$(ECHO) ""
 	$(ECHO) "	Supported Verilog targets:"
 	$(ECHO) "	--------"
